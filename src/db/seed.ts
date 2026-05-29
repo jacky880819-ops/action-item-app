@@ -20,39 +20,73 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
+// ─── Client factory (supports Turso + local) ──────────────────────────────────
+
+function createSeedClient(): { client: Client; isTurso: boolean } {
+  const isTurso = !!process.env.TURSO_DATABASE_URL;
+  if (isTurso) {
+    return {
+      client: createClient({
+        url: process.env.TURSO_DATABASE_URL!,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      }),
+      isTurso: true,
+    };
+  }
+  return {
+    client: createClient({ url: `file:${DB_PATH}` }),
+    isTurso: false,
+  };
+}
+
 // ─── Seed ──────────────────────────────────────────────────────────────────────
 
 async function seed() {
   console.log('🌱 Seeding database...\n');
 
-  // Ensure data directory
-  const dataDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
+  const seedResult = createSeedClient();
+  const client = seedResult.client;
+  const isTurso = seedResult.isTurso;
 
-  // If DB already exists and has users, skip seeding (preserve data)
-  if (fs.existsSync(DB_PATH)) {
-    const checkClient: Client = createClient({ url: `file:${DB_PATH}` });
+  // If not Turso, handle local DB file
+  if (!isTurso) {
+    const dataDir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    // If DB already exists and has users, skip seeding (preserve data)
+    if (fs.existsSync(DB_PATH)) {
+      const checkClient: Client = createClient({ url: `file:${DB_PATH}` });
+      try {
+        const result = await checkClient.execute('SELECT COUNT(*) as cnt FROM users');
+        const count = result.rows[0]?.cnt;
+        if (count && Number(count) > 0) {
+          console.log(`✅ Database already has ${count} users, skipping seed.`);
+          await checkClient.close();
+          return;
+        }
+      } catch {
+        // Table might not exist, proceed to seed
+      }
+      await checkClient.close();
+      // Remove corrupt/empty DB to start fresh
+      fs.unlinkSync(DB_PATH);
+    }
+  } else {
+    // Turso: check if users already exist
     try {
-      const result = await checkClient.execute('SELECT COUNT(*) as cnt FROM users');
+      const result = await client.execute('SELECT COUNT(*) as cnt FROM users');
       const count = result.rows[0]?.cnt;
       if (count && Number(count) > 0) {
-        console.log(`✅ Database already has ${count} users, skipping seed.`);
-        await checkClient.close();
+        console.log(`✅ Turso database already has ${count} users, skipping seed.`);
+        await client.close();
         return;
       }
     } catch {
       // Table might not exist, proceed to seed
     }
-    await checkClient.close();
-    // Remove corrupt/empty DB to start fresh
-    fs.unlinkSync(DB_PATH);
   }
-
-  const client: Client = createClient({
-    url: `file:${DB_PATH}`,
-  });
 
   // ── Create tables ────────────────────────────────────────────────────────────
 
@@ -343,7 +377,11 @@ async function seed() {
 
   await client.close();
 
-  console.log(`\n💾 Database saved to: ${DB_PATH}`);
+  if (isTurso) {
+    console.log('\n💾 Database saved to Turso (cloud)');
+  } else {
+    console.log(`\n💾 Database saved to: ${DB_PATH}`);
+  }
   console.log('\n🎉 Seed complete!');
   console.log('\nTest accounts:');
   console.log('  admin@test.com  / password123  (admin)');
