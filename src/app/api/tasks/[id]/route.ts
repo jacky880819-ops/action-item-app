@@ -182,15 +182,14 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   }
 
   // Hard delete - completely remove the task and related data
-  const { delete } = db;
   
   // Delete related records first
-  await delete(taskLabels).where(eq(taskLabels.taskId, id));
-  await delete(taskAssignees).where(eq(taskAssignees.taskId, id));
-  await delete(activities).where(eq(activities.taskId, id));
+  await db.delete(taskLabels).where(eq(taskLabels.taskId, id));
+  await db.delete(taskAssignees).where(eq(taskAssignees.taskId, id));
+  await db.delete(activities).where(eq(activities.taskId, id));
   
   // Delete the task
-  await delete(tasks).where(eq(tasks.id, id));
+  await db.delete(tasks).where(eq(tasks.id, id));
 
   return NextResponse.json({ 
     message: '任務已刪除',
