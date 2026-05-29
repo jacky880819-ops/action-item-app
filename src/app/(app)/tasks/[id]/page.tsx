@@ -14,6 +14,7 @@ import {
   User,
   Tag,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,6 +96,10 @@ export default function TaskDetailPage() {
   // Comment state
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Delete state
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     fetchTaskDetail();
@@ -270,6 +275,30 @@ export default function TaskDetailPage() {
     }
   };
 
+  const handleDeleteTask = async () => {
+    if (!confirm("確定要刪除此任務嗎？此操作無法復原。")) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        alert("任務已成功刪除");
+        router.push("/tasks");
+      } else {
+        const json = await res.json();
+        alert(json.error || "刪除失敗");
+      }
+    } catch (error) {
+      console.error("Failed to delete task:", error);
+      alert("刪除失敗");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case "todo":
@@ -345,43 +374,56 @@ export default function TaskDetailPage() {
       <div className="grid gap-6 md:grid-cols-3">
         {/* Left: Main Content */}
         <div className="md:col-span-2 space-y-6">
-          {/* Title */}
-          <div className="flex items-start gap-4">
-            {isEditingTitle ? (
-              <div className="flex-1 flex items-center gap-2">
-                <Textarea
-                  value={editedTitle}
-                  onChange={(e) => setEditedTitle(e.target.value)}
-                  className="flex-1 min-h-[40px]"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleSaveTitle}>
-                  <Save className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditedTitle(task.title);
-                    setIsEditingTitle(false);
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            ) : (
-              <>
-                <h1 className="text-3xl font-bold flex-1">{task.title}</h1>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditingTitle(true)}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </>
-            )}
-          </div>
+      {/* Title */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          {isEditingTitle ? (
+            <div className="flex items-center gap-2">
+              <Textarea
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                className="flex-1 min-h-[40px]"
+                autoFocus
+              />
+              <Button size="sm" onClick={handleSaveTitle}>
+                <Save className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditedTitle(task.title);
+                  setIsEditingTitle(false);
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <h1 className="text-3xl font-bold">{task.title}</h1>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!isEditingTitle && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditingTitle(true)}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteTask}
+            disabled={isDeleting}
+          >
+            <Trash2 className="w-4 h-4" />
+            {isDeleting ? "刪除中..." : "刪除"}
+          </Button>
+        </div>
+      </div>
 
           {/* Description */}
           <Card>

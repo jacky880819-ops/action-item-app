@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,6 +52,7 @@ export default function TasksPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
   // Filters
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -170,6 +171,30 @@ export default function TasksPage() {
     if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
+
+  const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("確定要刪除此任務嗎？")) return;
+    
+    setDeletingTaskId(taskId);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      } else {
+        const json = await res.json();
+        alert(json.error || "刪除失敗");
+      }
+    } catch (error) {
+      console.error("Failed to delete task:", error);
+      alert("刪除失敗");
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -318,19 +343,30 @@ export default function TasksPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {task.due_date ? (
-                      <span
-                        className={
-                          new Date(task.due_date) < new Date() && task.status !== "done"
-                            ? "text-red-600 font-medium"
-                            : "text-sm"
-                        }
+                    <div className="flex items-center gap-2">
+                      {task.due_date ? (
+                        <span
+                          className={
+                            new Date(task.due_date) < new Date() && task.status !== "done"
+                              ? "text-red-600 font-medium"
+                              : "text-sm"
+                          }
+                        >
+                          {new Date(task.due_date).toLocaleDateString("zh-TW")}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-destructive"
+                        onClick={(e) => handleDeleteTask(task.id, e)}
+                        disabled={deletingTaskId === task.id}
                       >
-                        {new Date(task.due_date).toLocaleDateString("zh-TW")}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
