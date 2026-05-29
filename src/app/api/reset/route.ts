@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { safeGetSession } from '@/lib/auth';
 import { initDb } from '@/db';
 import { users, tasks, taskAssignees, projects, comments, activities, notifications, attachments, labels, taskLabels } from '@/db';
+import { sql } from 'drizzle-orm';
 
 // POST - 清空所有資料（保留 admin 帳號）
 export async function POST(request: Request) {
@@ -39,9 +40,7 @@ export async function POST(request: Request) {
   await db.delete(projects);
   
   // Delete all members except the current admin
-  await db.delete(users).where((users) => 
-    db.sql`${users.id} != ${session.user.id}`
-  );
+  await db.delete(users).where(sql`${users.id} != ${session.user.id}`);
 
   return NextResponse.json({
     message: '已成功清空所有資料',
